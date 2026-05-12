@@ -5,7 +5,7 @@ const path = require('path');
 
 let products = [];
 try {
-  const dataPath = path.join(__dirname, '../gurutech/data/products.json');
+  const dataPath = path.join(__dirname, '../data/products.json');
   const raw = fs.readFileSync(dataPath, 'utf8');
   products = JSON.parse(raw);
 } catch (err) {

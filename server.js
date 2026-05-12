@@ -216,7 +216,7 @@ app.get('/api/gsc/top-pages', async (req, res) => {
   res.json(result);
 });
 
-app.use(express.static(path.join(__dirname, '../gurutech')));
+app.use(express.static(__dirname));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
