@@ -7,13 +7,15 @@ const path = require('path');
 require('dotenv').config();
 
 const { applySEOMiddleware } = require('./middleware/seo');
-const { generateStructuredData } = require('./utils/seo');
 const { generateSitemap } = require('./utils/sitemap');
 const { gscManager } = require('./utils/gsc');
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 5000;
 
+// ============================================
+// Security & Middleware
+// ============================================
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -25,7 +27,6 @@ app.use(helmet({
       connectSrc: ["'self'", "https://api.safaricom.co.ke", "https://sandbox.safaricom.co.ke"],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
     },
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
@@ -38,6 +39,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(applySEOMiddleware);
 
+// Rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -52,6 +54,9 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/', authLimiter);
 
+// ============================================
+// API Routes
+// ============================================
 const productRoutes = require('./routes/products');
 const orderRoutes = require('./routes/orders');
 const authRoutes = require('./routes/auth');
@@ -64,10 +69,23 @@ app.use('/api/auth', authRoutes);
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/admin', adminRoutes);
 
+// ============================================
+// SEO Endpoints
+// ============================================
 app.get('/robots.txt', (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
+  const siteUrl = process.env.SITE_URL || 'https://gurutech-wmnh.onrender.com';
   res.type('text/plain');
-  res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nDisallow: /checkout\nDisallow: /cart\nCrawl-delay: 1\nSitemap: ${siteUrl}/sitemap.xml\nHost: ${siteUrl}`);
+  res.send([
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /admin',
+    'Disallow: /api/',
+    'Disallow: /checkout',
+    'Disallow: /cart',
+    'Crawl-delay: 1',
+    `Sitemap: ${siteUrl}/sitemap.xml`,
+    `Host: ${siteUrl}`
+  ].join('\n'));
 });
 
 app.get('/sitemap.xml', async (req, res) => {
@@ -77,12 +95,12 @@ app.get('/sitemap.xml', async (req, res) => {
     res.header('Cache-Control', 'public, max-age=3600');
     res.send(sitemap);
   } catch (error) {
-    res.status(500).send('Error');
+    res.status(500).send('Error generating sitemap');
   }
 });
 
 app.get('/sitemap-index.xml', async (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
+  const siteUrl = process.env.SITE_URL || 'https://gurutech-wmnh.onrender.com';
   res.header('Content-Type', 'application/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n<sitemap><loc>${siteUrl}/sitemap.xml</loc><lastmod>${new Date().toISOString()}</lastmod></sitemap>\n</sitemapindex>`);
 });
@@ -98,104 +116,9 @@ app.get('/BingSiteAuth.xml', (req, res) => {
   res.send(`<?xml version="1.0"?>\n<users>\n<user>${process.env.BING_VERIFICATION_TOKEN || 'token'}</user>\n</users>`);
 });
 
-function generatePageHTML(options) {
-  const { title, description, canonical, ogImage, structuredData, breadcrumb, noindex = false, bodyContent = '<div id="root"></div>' } = options;
-  const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
-
-  let meta = `<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title><meta name="description" content="${description}"><meta name="theme-color" content="#111111"><link rel="canonical" href="${canonical}"><link rel="alternate" hreflang="en-ke" href="${canonical}"><link rel="alternate" hreflang="x-default" href="${canonical}"><link rel="preconnect" href="https://images.unsplash.com"><link rel="dns-prefetch" href="https://images.unsplash.com">`;
-
-  meta += `<meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:type" content="website"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${ogImage || siteUrl + '/assets/og-image.jpg'}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:site_name" content="GURUTECH"><meta property="og:locale" content="en_KE">`;
-
-  meta += `<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${ogImage || siteUrl + '/assets/og-image.jpg'}"><meta name="twitter:site" content="@gurutech">`;
-
-  if (noindex) meta += `<meta name="robots" content="noindex, nofollow">`;
-  else meta += `<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">`;
-
-  if (structuredData) meta += `<script type="application/ld+json">${JSON.stringify(structuredData)}</script>`;
-  if (breadcrumb) meta += `<script type="application/ld+json">${JSON.stringify(breadcrumb)}</script>`;
-
-  return `<!DOCTYPE html><html lang="en"><head>${meta}<link rel="stylesheet" href="/css/styles.css"></head><body>${bodyContent}<script src="/js/app.js"></script></body></html>`;
-}
-
-app.get('/', (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
-  res.send(generatePageHTML({
-    title: 'GURUTECH - Premium Electronics Store in Kenya | Laptops, Phones, Gaming',
-    description: 'GURUTECH is Kenya\'s trusted electronics store. Buy laptops, phones, audio equipment, gaming consoles and more. Fast delivery, M-Pesa payments, quality guaranteed.',
-    canonical: `${siteUrl}/`,
-    structuredData: generateStructuredData('homepage')
-  }));
-});
-
-app.get('/product/:id', async (req, res) => {
-  try {
-    const productId = req.params.id;
-    const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
-    const products = require('./routes/products').products || [];
-    const product = products.find(p => p.id === parseInt(productId));
-
-    if (!product) {
-      return res.status(404).send(generatePageHTML({
-        title: 'Product Not Found - GURUTECH',
-        description: 'The product you are looking for does not exist.',
-        canonical: `${siteUrl}/404`,
-        noindex: true
-      }));
-    }
-
-    res.send(generatePageHTML({
-      title: `${product.name} | ${product.brand} | GURUTECH Kenya`,
-      description: `Buy ${product.name} at GURUTECH Kenya. ${product.brand} ${product.category}. Price: KES ${product.price.toLocaleString()}. ${product.stock > 0 ? 'In stock' : 'Out of stock'} - Fast delivery with M-Pesa.`,
-      canonical: `${siteUrl}/product/${product.id}`,
-      ogImage: product.image,
-      structuredData: generateStructuredData('product', product),
-      breadcrumb: {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": siteUrl },
-          { "@type": "ListItem", "position": 2, "name": product.category.charAt(0).toUpperCase() + product.category.slice(1), "item": `${siteUrl}/category/${product.category}` },
-          { "@type": "ListItem", "position": 3, "name": product.name, "item": `${siteUrl}/product/${product.id}` }
-        ]
-      }
-    }));
-  } catch (error) {
-    res.status(500).send('Server error');
-  }
-});
-
-app.get('/category/:category', (req, res) => {
-  const category = req.params.category;
-  const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
-  const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
-
-  res.send(generatePageHTML({
-    title: `${categoryName} - Buy ${categoryName} in Kenya | GURUTECH`,
-    description: `Shop ${categoryName} at GURUTECH Kenya. Best prices on ${categoryName} from top brands. Fast delivery, M-Pesa payments, warranty included.`,
-    canonical: `${siteUrl}/category/${category}`,
-    structuredData: generateStructuredData('category', { category, categoryName }),
-    breadcrumb: {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        { "@type": "ListItem", "position": 1, "name": "Home", "item": siteUrl },
-        { "@type": "ListItem", "position": 2, "name": categoryName, "item": `${siteUrl}/category/${category}` }
-      ]
-    }
-  }));
-});
-
-app.get(['/cart', '/checkout', '/order-success', '/admin-login'], (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
-  const titles = { '/cart': 'Shopping Cart', '/checkout': 'Checkout', '/order-success': 'Order Confirmed', '/admin-login': 'Admin Login' };
-  res.send(generatePageHTML({
-    title: `${titles[req.path] || 'Page'} - GURUTECH`,
-    description: `${titles[req.path]} at GURUTECH Kenya.`,
-    canonical: `${siteUrl}${req.path}`,
-    noindex: true
-  }));
-});
-
+// ============================================
+// GSC API Endpoints
+// ============================================
 app.post('/api/gsc/submit-sitemap', async (req, res) => {
   const result = await gscManager.submitSitemap();
   res.json(result);
@@ -216,26 +139,77 @@ app.get('/api/gsc/top-pages', async (req, res) => {
   res.json(result);
 });
 
-app.use(express.static(__dirname));
+// ============================================
+// Serve Static Files (CSS, JS, images, data)
+// ============================================
+app.use(express.static(path.join(__dirname)));
 
+// ============================================
+// HTML Page Routes — serve actual HTML files
+// ============================================
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/products', (req, res) => {
+  res.sendFile(path.join(__dirname, 'products.html'));
+});
+
+app.get('/product', (req, res) => {
+  res.sendFile(path.join(__dirname, 'product.html'));
+});
+
+app.get('/cart', (req, res) => {
+  res.sendFile(path.join(__dirname, 'cart.html'));
+});
+
+app.get('/checkout', (req, res) => {
+  res.sendFile(path.join(__dirname, 'checkout.html'));
+});
+
+app.get('/order-success', (req, res) => {
+  res.sendFile(path.join(__dirname, 'order-success.html'));
+});
+
+app.get('/admin-login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-login.html'));
+});
+
+app.get('/admin-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-dashboard.html'));
+});
+
+app.get('/admin-orders', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-orders.html'));
+});
+
+app.get('/admin-products', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-products.html'));
+});
+
+app.get('/admin-customers', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin-customers.html'));
+});
+
+// ============================================
+// Error Handlers
+// ============================================
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong' });
 });
 
+// 404 — serve 404.html
 app.use((req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://gurutech.co.ke';
-  res.status(404).send(generatePageHTML({
-    title: 'Page Not Found - GURUTECH',
-    description: 'The page you are looking for does not exist.',
-    canonical: `${siteUrl}/404`,
-    noindex: true
-  }));
+  res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
 
+// ============================================
+// Start Server
+// ============================================
 app.listen(PORT, () => {
-  console.log(`GURUTECH Backend on port ${PORT}`);
-  console.log('SEO: /robots.txt, /sitemap.xml, /google:token.html');
+  console.log(`GURUTECH running on port ${PORT}`);
+  console.log(`SEO: /robots.txt, /sitemap.xml`);
 });
 
 module.exports = app;
