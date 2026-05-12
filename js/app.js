@@ -73,8 +73,9 @@ const App = {
     overlay?.addEventListener('click', close);
   },
 
-  // Update cart count in header
+  // Update cart count in header — guarded so it's safe even if cart.js isn't loaded yet
   updateCartCount() {
+    if (typeof Cart === 'undefined') return;
     const count = Cart.getCount();
     const badge = document.querySelector('.cart-count');
     if (badge) {

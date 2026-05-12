@@ -3,7 +3,7 @@
    ============================================ */
 
 const Cart = {
-  items: JSON.parse(localStorage.getItem('gurutech_cart')) || [],
+  items: JSON.parse(localStorage.getItem('gurutech_cart') || '[]'),
 
   // Add item to cart
   add(product, quantity = 1) {
@@ -33,7 +33,7 @@ const Cart = {
     this.items = this.items.filter(item => item.id !== id);
     this.save();
     App.updateCartCount();
-    this.renderCartPage?.();
+    this.renderCartPage();
   },
 
   // Update quantity
@@ -53,7 +53,7 @@ const Cart = {
 
     item.quantity = quantity;
     this.save();
-    this.renderCartPage?.();
+    this.renderCartPage();
   },
 
   // Get total item count
@@ -123,12 +123,17 @@ const Cart = {
     const shipping = this.getShipping();
     const total = subtotal + shipping;
 
-    document.getElementById('cart-subtotal').textContent = App.formatPrice(subtotal);
-    document.getElementById('cart-shipping').textContent = shipping === 0 ? 'FREE' : App.formatPrice(shipping);
-    document.getElementById('cart-total').textContent = App.formatPrice(total);
+    const subtotalEl = document.getElementById('cart-subtotal');
+    const shippingEl = document.getElementById('cart-shipping');
+    const totalEl = document.getElementById('cart-total');
+
+    if (subtotalEl) subtotalEl.textContent = App.formatPrice(subtotal);
+    if (shippingEl) shippingEl.textContent = shipping === 0 ? 'FREE' : App.formatPrice(shipping);
+    if (totalEl) totalEl.textContent = App.formatPrice(total);
   }
 };
-// Re-run cart count update now that Cart is defined
+
+// Now that Cart is defined, update the cart badge
 document.addEventListener('DOMContentLoaded', () => {
   App.updateCartCount();
 });

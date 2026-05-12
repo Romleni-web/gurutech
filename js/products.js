@@ -18,12 +18,21 @@ const Products = {
   async load() {
     try {
       const response = await fetch('data/products.json');
-      this.data = await response.json();
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      this.data = JSON.parse(text);
       this.filtered = [...this.data];
       return this.data;
     } catch (err) {
       console.error('Failed to load products:', err);
-      App.toast('Failed to load products', 'error');
+      // Show user-friendly error on page
+      const grids = ['featured-products', 'new-arrivals', 'products-grid'];
+      grids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<p style="color:#666;padding:20px">Failed to load products. Please refresh the page.</p>';
+      });
+      const countEl = document.getElementById('results-count');
+      if (countEl) countEl.textContent = '0 products';
       return [];
     }
   },
@@ -67,7 +76,6 @@ const Products = {
         this.filtered.sort((a, b) => b.id - a.id);
         break;
       default:
-        // featured - keep original order
         break;
     }
   },
@@ -76,8 +84,8 @@ const Products = {
   search(query) {
     if (!query.trim()) return this.data;
     const q = query.toLowerCase();
-    return this.data.filter(p => 
-      p.name.toLowerCase().includes(q) || 
+    return this.data.filter(p =>
+      p.name.toLowerCase().includes(q) ||
       p.brand.toLowerCase().includes(q) ||
       p.category.toLowerCase().includes(q)
     );
@@ -101,6 +109,9 @@ const Products = {
     const stockClass = product.stock > 10 ? 'in-stock' : product.stock > 0 ? 'low-stock' : 'out-of-stock';
     const stockText = product.stock > 10 ? 'In Stock' : product.stock > 0 ? `Only ${product.stock} left` : 'Out of Stock';
 
+    // Safely encode product for onclick
+    const productJson = JSON.stringify(product).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
     return `
       <div class="product-card">
         <div class="product-card-img">
@@ -121,7 +132,7 @@ const Products = {
             ${product.oldPrice ? `<span class="price-old">${App.formatPrice(product.oldPrice)}</span>` : ''}
           </div>
           <div class="stock-status ${stockClass}">${stockText}</div>
-          <button class="btn btn-primary btn-sm" onclick="Cart.add(${JSON.stringify(product).replace(/"/g, '&quot;')})" ${product.stock === 0 ? 'disabled' : ''}>
+          <button class="btn btn-primary btn-sm" onclick='Cart.add(${JSON.stringify(product)})' ${product.stock === 0 ? 'disabled' : ''}>
             ${product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
           </button>
         </div>
@@ -133,6 +144,10 @@ const Products = {
   renderGrid(containerId, products) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    if (!products || products.length === 0) {
+      container.innerHTML = '<p style="color:#666;padding:20px">No products found.</p>';
+      return;
+    }
     container.innerHTML = products.map(p => this.renderCard(p)).join('');
   }
 };
