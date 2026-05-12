@@ -12,7 +12,7 @@ const { generateSitemap } = require('./utils/sitemap');
 const { gscManager } = require('./utils/gsc');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT, 10) || 5000;
 
 app.use(helmet({
   contentSecurityPolicy: {
