@@ -128,3 +128,7 @@ const Cart = {
     document.getElementById('cart-total').textContent = App.formatPrice(total);
   }
 };
+// Re-run cart count update now that Cart is defined
+document.addEventListener('DOMContentLoaded', () => {
+  App.updateCartCount();
+});
